@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir)",
+      "Bash(dir contracts)",
+      "Bash(npm install)",
+      "Bash(clarinet deployments generate:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

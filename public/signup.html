@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<link crossorigin="" href="https://fonts.gstatic.com/" rel="preconnect"/>
+<link as="style" href="https://fonts.googleapis.com/css2?display=swap&amp;family=Noto+Sans%3Awght%40400%3B500%3B700%3B900&amp;family=Spline+Sans%3Awght%40400%3B500%3B700" onload="this.rel='stylesheet'" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+<title>sPay - Create Account</title>
+<link href="data:image/x-icon;base64," rel="icon" type="image/x-icon"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<style type="text/tailwindcss">
+      :root {
+        --orange-500: #f97316;
+        --yellow-400: #facc15;
+      }
+    </style>
+</head>
+<body class="bg-black">
+<div class="relative flex size-full min-h-screen flex-col" style='font-family: "Spline Sans", "Noto Sans", sans-serif;'>
+<header class="absolute top-0 left-0 right-0 z-10 flex items-center justify-between whitespace-nowrap px-10 py-5">
+<a class="flex items-center gap-2 text-white" href="#">
+<svg class="h-8 w-8 text-[var(--orange-500)]" fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path d="M24.0001 4.5C13.7841 4.5 5.50006 12.784 5.50006 23C5.50006 33.216 13.7841 41.5 24.0001 41.5C34.2161 41.5 42.5001 33.216 42.5001 23C42.5001 12.784 34.2161 4.5 24.0001 4.5ZM24.0001 37.5C15.9921 37.5 9.50006 31.008 9.50006 23C9.50006 14.992 15.9921 8.5 24.0001 8.5C32.0081 8.5 38.5001 14.992 38.5001 23C38.5001 31.008 32.0081 37.5 24.0001 37.5Z" fill="currentColor"></path>
+<path d="M26.516 20.354C26.13 19.986 25.59 19.842 25.042 19.968C24.494 20.094 24.024 20.472 23.824 20.984L20.824 28.984C20.624 29.496 20.73 30.082 21.088 30.494C21.446 30.906 22.008 31.11 22.568 31.018L29.568 29.768C30.128 29.674 30.602 29.314 30.828 28.81C31.054 28.306 30.998 27.72 30.684 27.28L26.516 20.354Z" fill="currentColor"></path>
+</svg>
+<h2 class="text-white text-xl font-bold leading-tight tracking-[-0.015em]">sPay</h2>
+</a>
+</header>
+<main class="flex flex-1 items-center justify-center px-4 py-16">
+<div class="relative w-full max-w-md">
+<div class="absolute -top-16 -left-16 w-48 h-48 bg-[var(--orange-500)]/20 rounded-full blur-3xl"></div>
+<div class="absolute -bottom-16 -right-16 w-48 h-48 bg-[var(--yellow-400)]/20 rounded-full blur-3xl"></div>
+<div class="relative z-10 flex flex-col items-center gap-8 rounded-2xl border border-white/10 bg-black/50 p-8 backdrop-blur-md">
+<div class="text-center">
+<h1 class="text-4xl font-bold text-white tracking-tight">Create your account</h1>
+<p class="mt-2 text-white/60">Join sPay to start accepting Bitcoin payments.</p>
+</div>
+<form class="flex w-full flex-col gap-4">
+<div class="relative">
+<input class="peer h-14 w-full rounded-lg border border-white/10 bg-white/5 p-4 text-white placeholder-transparent focus:border-[var(--orange-500)] focus:outline-none" id="email" placeholder="Email" type="email"/>
+<label class="absolute left-4 -top-3.5 text-white/50 text-sm transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:-top-3.5 peer-focus:text-[var(--orange-500)] peer-focus:text-sm" for="email">Email</label>
+</div>
+<div class="relative">
+<input class="peer h-14 w-full rounded-lg border border-white/10 bg-white/5 p-4 text-white placeholder-transparent focus:border-[var(--orange-500)] focus:outline-none" id="password" placeholder="Password" type="password"/>
+<label class="absolute left-4 -top-3.5 text-white/50 text-sm transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:-top-3.5 peer-focus:text-[var(--orange-500)] peer-focus:text-sm" for="password">Password</label>
+</div>
+<button class="flex h-14 w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-[var(--orange-500)] text-base font-bold text-black shadow-lg shadow-[var(--orange-500)]/20 transition-all hover:bg-[var(--yellow-400)] hover:shadow-[var(--yellow-400)]/30" type="submit">
+                Create Account
+              </button>
+</form>
+<p class="text-sm text-white/60">
+              Already have an account?
+              <a class="font-medium text-[var(--orange-500)] hover:text-[var(--yellow-400)]" href="#">Sign in</a>
+</p>
+</div>
+</div>
+</main>
+</div>
+
+</body></html>
