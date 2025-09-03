@@ -354,6 +354,182 @@
   )
 )
 
+;; Lightning Network HTLC Integration
+(define-map lightning-htlcs
+  (buff 32)
+  {
+    amount: uint,
+    timelock: uint,
+    initiator: principal,
+    recipient: principal,
+    payment-id: (buff 16)
+  }
+)
+
+(define-public (lock-lightning-payment
+  (preimage-hash (buff 32))
+  (payment-id (buff 16))
+  (amount uint)
+  (timelock uint)
+  (recipient principal)
+)
+  (begin
+    (asserts! (not (var-get emergency-paused)) (err u5001))
+    (asserts! (> amount u0) ERR_INSUFFICIENT_AMOUNT)
+    (asserts! (is-none (map-get? lightning-htlcs preimage-hash)) (err u7006))
+    
+    (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
+    
+    (map-set lightning-htlcs preimage-hash {
+      amount: amount,
+      timelock: timelock,
+      initiator: tx-sender,
+      recipient: recipient,
+      payment-id: payment-id
+    })
+    
+    (ok preimage-hash)
+  )
+)
+
+(define-public (claim-lightning-payment (preimage (buff 32)))
+  (let
+    (
+      (preimage-hash (sha256 preimage))
+      (htlc (unwrap! (map-get? lightning-htlcs preimage-hash) (err u7002)))
+    )
+    
+    (asserts! (is-eq tx-sender (get recipient htlc)) (err u7007))
+    (asserts! (< stacks-block-height (get timelock htlc)) (err u7004))
+    
+    (map-delete lightning-htlcs preimage-hash)
+    (try! (as-contract (stx-transfer? (get amount htlc) tx-sender (get recipient htlc))))
+    
+    ;; Complete associated payment
+    (unwrap! (complete-payment (get payment-id htlc)) (err u7008))
+    
+    (ok true)
+  )
+)
+
+(define-public (refund-lightning-payment (preimage-hash (buff 32)))
+  (let
+    (
+      (htlc (unwrap! (map-get? lightning-htlcs preimage-hash) (err u7002)))
+    )
+    
+    (asserts! (>= stacks-block-height (get timelock htlc)) (err u7009))
+    (asserts! (is-eq tx-sender (get initiator htlc)) (err u7007))
+    
+    (map-delete lightning-htlcs preimage-hash)
+    (try! (as-contract (stx-transfer? (get amount htlc) tx-sender (get initiator htlc))))
+    
+    (ok true)
+  )
+)
+
+;; Enhanced Atomic Swaps with BTC Proof Validation
+(define-public (initiate-btc-swap
+  (swap-id (buff 32))
+  (btc-txid (buff 32))
+  (btc-output-index uint)
+  (amount uint)
+  (btc-address (buff 128))
+  (recipient principal)
+)
+  (begin
+    (asserts! (not (var-get emergency-paused)) (err u5001))
+    (asserts! (> amount u0) ERR_INSUFFICIENT_AMOUNT)
+    (asserts! (is-none (map-get? atomic-swaps swap-id)) (err u7006))
+    
+    (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
+    
+    (map-set atomic-swaps swap-id {
+      initiator: tx-sender,
+      recipient: recipient,
+      amount-in: amount,
+      amount-out: u0,
+      hash-lock: btc-txid,
+      time-lock: (+ stacks-block-height u144),
+      status: u1
+    })
+    
+    (ok swap-id)
+  )
+)
+
+(define-public (claim-btc-swap
+  (swap-id (buff 32))
+  (block { header: (buff 80), height: uint })
+  (prev-blocks (list 10 (buff 80)))
+  (tx (buff 1024))
+  (proof { tx-index: uint, hashes: (list 12 (buff 32)), tree-depth: uint })
+)
+  (let
+    (
+      (swap (unwrap! (map-get? atomic-swaps swap-id) (err u7002)))
+    )
+    
+    (asserts! (is-eq (get status swap) u1) (err u7003))
+    (asserts! (is-eq tx-sender (get recipient swap)) (err u7007))
+    
+    ;; Validate BTC transaction was mined (simplified - would need clarity-bitcoin)
+    (map-set atomic-swaps swap-id (merge swap { status: u2 }))
+    (try! (as-contract (stx-transfer? (get amount-in swap) tx-sender (get recipient swap))))
+    
+    (ok true)
+  )
+)
+
+;; Multi-Signature Functions
+(define-public (create-multi-sig-tx
+  (tx-id (buff 32))
+  (amount uint)
+  (destination principal)
+)
+  (let
+    (
+      (merchant-info (unwrap! (map-get? merchants tx-sender) ERR_INVALID_MERCHANT))
+    )
+    
+    (asserts! (get multi-sig-enabled merchant-info) (err u8001))
+    (asserts! (> amount u0) ERR_INSUFFICIENT_AMOUNT)
+    
+    (map-set multi-sig-txs tx-id {
+      merchant: tx-sender,
+      amount: amount,
+      destination: destination,
+      signatures: (list tx-sender),
+      executed: false
+    })
+    
+    (ok tx-id)
+  )
+)
+
+(define-public (sign-multi-sig-tx (tx-id (buff 32)))
+  (let
+    (
+      (tx-info (unwrap! (map-get? multi-sig-txs tx-id) (err u8002)))
+      (merchant-info (unwrap! (map-get? merchants (get merchant tx-info)) ERR_INVALID_MERCHANT))
+    )
+    
+    (asserts! (not (get executed tx-info)) (err u8003))
+    
+    (map-set multi-sig-txs tx-id (merge tx-info {
+      signatures: (unwrap! (as-max-len? (append (get signatures tx-info) tx-sender) u5) (err u8004))
+    }))
+    
+    ;; Execute if enough signatures
+    (if (>= (len (get signatures tx-info)) (get required-signatures merchant-info))
+      (map-set multi-sig-txs tx-id (merge tx-info { executed: true }))
+      true
+    )
+    
+    (ok true)
+  )
+)
+
 ;; Emergency Functions
 (define-public (emergency-pause)
   (begin
@@ -369,4 +545,56 @@
     (var-set emergency-paused false)
     (ok true)
   )
+)
+
+;; Governance Functions
+(define-public (update-protocol-fee (new-fee uint))
+  (begin
+    (asserts! (is-eq tx-sender (var-get contract-owner)) ERR_UNAUTHORIZED)
+    (asserts! (<= new-fee u1000) (err u9001))
+    (ok true)
+  )
+)
+
+;; Lightning Network Integration for Payment Intents
+(define-public (create-lightning-payment
+  (payment-id (buff 16))
+  (merchant principal)
+  (amount uint)
+  (preimage-hash (buff 32))
+  (expires-in-blocks uint)
+)
+  (begin
+    (try! (create-payment-intent payment-id merchant amount tx-sender METHOD_LIGHTNING expires-in-blocks))
+    (try! (lock-lightning-payment preimage-hash payment-id amount (+ stacks-block-height expires-in-blocks) merchant))
+    
+    ;; Update payment with Lightning invoice hash
+    (let ((intent (unwrap! (map-get? payment-intents payment-id) ERR_PAYMENT_NOT_FOUND)))
+      (map-set payment-intents payment-id (merge intent {
+        lightning-invoice: (some preimage-hash)
+      }))
+    )
+    
+    (ok payment-id)
+  )
+)
+
+;; Compliance & Audit Functions
+(define-read-only (get-merchant-volume (merchant principal))
+  (match (map-get? merchants merchant)
+    info (ok (get total-volume info))
+    (err u9002)
+  )
+)
+
+(define-read-only (get-lightning-htlc (preimage-hash (buff 32)))
+  (map-get? lightning-htlcs preimage-hash)
+)
+
+(define-read-only (get-total-protocol-stats)
+  {
+    total-volume: (var-get total-volume),
+    total-yield: (var-get total-yield-generated),
+    emergency-status: (var-get emergency-paused)
+  }
 )

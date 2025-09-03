@@ -47,7 +47,10 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Serve static files (frontend)
-app.use(express.static(path.join(__dirname, 'public')));
+const frontendPath = process.env.NODE_ENV === 'production' 
+  ? path.join(__dirname, 'frontend/sflow/dist')
+  : path.join(__dirname, 'frontend/sflow');
+app.use(express.static(frontendPath));
 
 // Routes
 app.use('/api/v1/payments', paymentRoutes);
@@ -66,7 +69,7 @@ app.get('/api/v1/health', (req, res) => {
 
 // Serve frontend for all other routes
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'frontend/sflow', 'index.html'));
 });
 
 // Error handling middleware

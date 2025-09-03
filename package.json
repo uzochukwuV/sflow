@@ -7,6 +7,11 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "frontend": "cd frontend/sflow && npm run dev",
+    "dev:full": "concurrently \"npm run dev\" \"npm run frontend\"",
+    "build:frontend": "cd frontend/sflow && npm run build",
+    "build": "npm run build:frontend && echo 'Build complete!'",
+    "start:prod": " node server.js",
     "test": "vitest run",
     "test:report": "vitest run -- --coverage --costs",
     "test:watch": "chokidar \"tests/**/*.ts\" \"contracts/**/*.clar\" -c \"npm run test:report\""
@@ -28,6 +33,7 @@
     "vitest-environment-clarinet": "^2.3.0"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "nodemon": "^3.0.2"
   }
 }
