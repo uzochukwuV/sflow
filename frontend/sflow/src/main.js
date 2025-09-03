@@ -118,36 +118,30 @@ class SFlowApp {
     async registerMerchant(user) {
         try {
             const { api } = await import('./api.js');
-            const { clarinet } = await import('./clarinet-integration.js');
             
-            // Use one of the Clarinet console wallets
-            const merchantAddress = 'ST1SJ3DTE5DN7X54YDH5D64R3BCB6A2AG2ZQ8YPD5'; // wallet_1
+            // Use testnet wallet address - backend handles smart contract interaction
+            const merchantAddress = 'ST219X1CZBCMQC37QC4GBYH8E1XW1X11EXNQ3SFWZ';
             
-            // Register merchant on smart contract first
-            const contractResult = await clarinet.registerMerchant(merchantAddress, true, 800);
-            
-            if (contractResult.success) {
-                // Then register in backend database
-                const merchantData = {
-                    fee_destination: merchantAddress,
-                    yield_enabled: true,
-                    yield_percentage: 800, // 8% in basis points
-                    multi_sig_enabled: false,
-                    required_signatures: 1,
-                    user_id: user.id,
-                    email: user.email
-                };
+            // Register merchant via backend (which handles smart contract calls)
+            const merchantData = {
+                fee_destination: merchantAddress,
+                yield_enabled: true,
+                yield_percentage: 500, // 5% in basis points
+                multi_sig_enabled: false,
+                required_signatures: 1,
+                user_id: user.id,
+                email: user.email
+            };
 
-                const result = await api.registerMerchant(merchantData);
-                
-                if (result.success) {
-                    // Store merchant info including Clarinet address
-                    const merchantInfo = {
-                        ...result.data,
-                        clarinet_address: merchantAddress
-                    };
-                    localStorage.setItem('merchant_data', JSON.stringify(merchantInfo));
-                }
+            const result = await api.registerMerchant(merchantData);
+            
+            if (result.success) {
+                // Store merchant info
+                const merchantInfo = {
+                    ...result.data,
+                    testnet_address: merchantAddress
+                };
+                localStorage.setItem('merchant_data', JSON.stringify(merchantInfo));
             }
         } catch (error) {
             console.error('Auto merchant registration failed:', error);

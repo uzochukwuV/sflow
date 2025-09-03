@@ -9,47 +9,53 @@ export class ApiService {
     }
 
     async request(endpoint, options = {}) {
+        console.log(`[API] Making request to: ${endpoint}`, options);
+        
         const session = await auth.getSession();
         const headers = {
             'Content-Type': 'application/json',
             ...options.headers
         };
 
-        if (session?.access_token) {
-            headers['Authorization'] = `Bearer ${session.access_token}`;
-        }
+        // Use test API key for now (in production, this would come from auth)
+        headers['Authorization'] = 'Bearer sk_test_1234567890abcdef';
+        
+        console.log('[API] Request headers:', headers);
 
-        // Add API key from merchant data if available
-        const merchantData = localStorage.getItem('merchant_data');
-        if (merchantData) {
-            const merchant = JSON.parse(merchantData);
-            if (merchant.api_key) {
-                headers['X-API-Key'] = merchant.api_key;
+        try {
+            const response = await fetch(`${this.baseURL}${endpoint}`, {
+                ...options,
+                headers
+            });
+
+            console.log(`[API] Response status: ${response.status}`);
+            
+            const responseData = await response.json();
+            console.log('[API] Response data:', responseData);
+
+            if (!response.ok) {
+                throw new Error(`API Error: ${response.status} - ${responseData.error?.message || response.statusText}`);
             }
+
+            return responseData;
+        } catch (error) {
+            console.error('[API] Request failed:', error);
+            throw error;
         }
-
-        const response = await fetch(`${this.baseURL}${endpoint}`, {
-            ...options,
-            headers
-        });
-
-        if (!response.ok) {
-            throw new Error(`API Error: ${response.status} ${response.statusText}`);
-        }
-
-        return response.json();
     }
 
-    // Wave 1: Foundation - Merchant Registration
-    async registerMerchant(merchantData) {
-        return this.request('/merchants/register', {
-            method: 'POST',
-            body: JSON.stringify(merchantData)
-        });
-    }
 
     async getMerchantProfile() {
-        return this.request('/merchants/me');
+        console.log('[API] Fetching merchant profile...');
+        
+        try {
+            const response = await this.request('/merchants/me');
+            console.log('[API] Merchant profile response:', response);
+            return response;
+        } catch (error) {
+            console.error('[API] Failed to fetch merchant profile:', error);
+            throw error;
+        }
     }
 
     // Wave 1 & 2: Multi-Layer Payment Intents
@@ -115,19 +121,41 @@ export class ApiService {
         }
     }
 
-    // Register merchant with backend
+    // Enhanced merchant registration with detailed logging
     async registerMerchant(merchantData) {
+        console.log('[API] Registering merchant with data:', merchantData);
+        
         try {
-            return await this.request('/merchants/register', {
+            const response = await this.request('/merchants/register', {
                 method: 'POST',
                 body: JSON.stringify(merchantData)
             });
+            
+            console.log('[API] Merchant registration response:', response);
+            return response;
         } catch (error) {
-            console.error('Merchant registration failed:', error);
+            console.error('[API] Merchant registration failed:', error);
             return {
                 success: false,
-                error: error.message
+                error: {
+                    message: error.message,
+                    details: error.stack
+                }
             };
+        }
+    }
+
+    // Check if merchant is registered
+    async isMerchantRegistered() {
+        console.log('[API] Checking merchant registration status...');
+        
+        try {
+            const response = await this.getMerchantProfile();
+            console.log('[API] Merchant profile check result:', response);
+            return response.success;
+        } catch (error) {
+            console.log('[API] Merchant not registered (expected for new merchants):', error.message);
+            return false;
         }
     }
 }

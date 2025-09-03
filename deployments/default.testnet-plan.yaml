@@ -1,0 +1,18 @@
+---
+id: 0
+name: Testnet deployment
+network: testnet
+stacks-node: "https://api.testnet.hiro.so"
+bitcoin-node: "http://blockstack:blockstacksystem@bitcoind.testnet.stacks.co:18332"
+plan:
+  batches:
+    - id: 0
+      transactions:
+        - contract-publish:
+            contract-name: sflow
+            expected-sender: ST219X1CZBCMQC37QC4GBYH8E1XW1X11EXNQ3SFWZ
+            cost: 155870
+            path: "contracts\\sflow.clar"
+            anchor-block-only: true
+            clarity-version: 3
+      epoch: "3.2"

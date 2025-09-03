@@ -9,41 +9,36 @@ import {
   bufferCV,
   boolCV,
   stringAsciiCV,
-  randomPrivateKey
+  randomPrivateKey,
+  getAddressFromPrivateKey,
+  privateKeyToPublic,
+  serializeTransaction
 } from '@stacks/transactions';
 import { STACKS_DEVNET, STACKS_TESTNET, STACKS_MAINNET, STACKS_MOCKNET } from '@stacks/network';
 
 
 export class StacksService {
   constructor() {
-    // Enable mock mode for testing when no valid private key is provided
-   
+    this.network = STACKS_TESTNET
     
-    this.network = process.env.STACKS_NETWORK === 'mainnet' 
-      ? STACKS_MAINNET
-      : process.env.STACKS_NETWORK === 'testnet'
-      ? STACKS_TESTNET
-      : STACKS_DEVNET;
+    // Debug environment variables
+    console.log('Environment variables loaded:');
+    console.log('CONTRACT_ADDRESS:', process.env.CONTRACT_ADDRESS);
+    console.log('CONTRACT_NAME:', process.env.CONTRACT_NAME);
     
-    this.contractAddress = process.env.CONTRACT_ADDRESS || 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM';
-    this.contractName = process.env.CONTRACT_NAME || 'bitcoin-payment-gateway';
-    this.senderKey = process.env.SENDER_PRIVATE_KEY || '753b7cc01a1a2e86221266a154af739463fce51219d97e4f856cd7200c3bd2a601';
-     // Force mock mode for testing - disable actual blockchain calls
-    this.network.client.baseUrl = "https://api.platform.hiro.so/v1/ext/46395296e61d1a86dcebd10915bb8fd9/stacks-blockchain-api"
-    this.mockMode = false; // Change to false when you have a running Stacks node
+    this.contractAddress = "ST219X1CZBCMQC37QC4GBYH8E1XW1X11EXNQ3SFWZ";
+    this.contractName = process.env.CONTRACT_NAME || 'sflow';
+    this.senderKey = process.env.SENDER_PRIVATE_KEY || '753b7cc01a1a2e86221266a154af739463fce51219d87e4f856cd7200c3bd2a601';
+    
+    console.log('Using contract:', `${this.contractAddress}.${this.contractName}`);
+    
+    this.address = getAddressFromPrivateKey(this.senderKey, this.network);
+    this.mockMode = false; // Keeping for backward compatibility with read functions
   }
 
   async createPaymentIntent({ paymentId, merchant, amount, currency, method, expiresInBlocks }) {
     try {
-      // Return mock response when in mock mode
-      if (this.mockMode) {
-        console.log('Mock mode: Simulating payment intent creation');
-        return {
-          txid: `mock_tx_${Date.now()}_payment`,
-          transaction: null
-        };
-      }
-      console.log(this.network.client.baseUrl)
+      console.log('Creating payment intent with:', { paymentId, merchant, amount, currency, method, expiresInBlocks });
 
       const txOptions = {
         contractAddress: this.contractAddress,
@@ -53,7 +48,7 @@ export class StacksService {
           bufferCV(paymentId),
           standardPrincipalCV(merchant),
           uintCV(amount),
-          stringAsciiCV(currency),  // Currency should be string, not principal
+          standardPrincipalCV(currency),
           uintCV(method),
           uintCV(expiresInBlocks)
         ],
@@ -65,21 +60,27 @@ export class StacksService {
       };
 
       const transaction = await makeContractCall(txOptions);
-      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      const txid = transaction.txid();
+      console.log('Payment intent transaction created with TXID:', txid);
+      console.log('Broadcasting transaction to network...');
       
-      return {
-        txid: broadcastResponse.txid,
-        transaction
-      };
-
+      const broadcastResponse = await broadcastTransaction({ transaction, network: this.network });
+      
+      console.log('Broadcast response:', broadcastResponse);
+      console.log('✅ Payment intent transaction broadcasted successfully!');
+      console.log('🔍 Check transaction on explorer:', `https://explorer.stacks.co/txid/${broadcastResponse.txid || txid}?chain=testnet`);
+      
+      return { txid: broadcastResponse.txid || txid, transaction };
     } catch (error) {
-      console.error('Error creating payment intent on contract:', error);
+      console.error('Error creating payment intent:', error);
       throw new Error(`Failed to create payment intent: ${error.message}`);
     }
   }
 
   async processPayment(paymentId) {
     try {
+      console.log('Processing payment with ID:', paymentId);
+      
       const txOptions = {
         contractAddress: this.contractAddress,
         contractName: this.contractName,
@@ -95,10 +96,18 @@ export class StacksService {
       };
 
       const transaction = await makeContractCall(txOptions);
-      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      const txid = transaction.txid();
+      console.log('Process payment transaction created with TXID:', txid);
+      console.log('Broadcasting transaction to network...');
+      
+      const broadcastResponse = await broadcastTransaction({ transaction, network: this.network });
+      
+      console.log('Broadcast response:', broadcastResponse);
+      console.log('✅ Process payment transaction broadcasted successfully!');
+      console.log('🔍 Check transaction on explorer:', `https://explorer.stacks.co/txid/${broadcastResponse.txid || txid}?chain=testnet`);
       
       return {
-        txid: broadcastResponse.txid,
+        txid: broadcastResponse.txid || txid,
         transaction
       };
 
@@ -110,6 +119,8 @@ export class StacksService {
 
   async completePayment(paymentId) {
     try {
+      console.log('Completing payment with ID:', paymentId);
+      
       const txOptions = {
         contractAddress: this.contractAddress,
         contractName: this.contractName,
@@ -125,10 +136,18 @@ export class StacksService {
       };
 
       const transaction = await makeContractCall(txOptions);
-      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      const txid = transaction.txid();
+      console.log('Complete payment transaction created with TXID:', txid);
+      console.log('Broadcasting transaction to network...');
+      
+      const broadcastResponse = await broadcastTransaction({ transaction, network: this.network });
+      
+      console.log('Broadcast response:', broadcastResponse);
+      console.log('✅ Complete payment transaction broadcasted successfully!');
+      console.log('🔍 Check transaction on explorer:', `https://explorer.stacks.co/txid/${broadcastResponse.txid || txid}?chain=testnet`);
       
       return {
-        txid: broadcastResponse.txid,
+        txid: broadcastResponse.txid || txid,
         transaction
       };
 
@@ -140,6 +159,8 @@ export class StacksService {
 
   async cancelPayment(paymentId) {
     try {
+      console.log('Cancelling payment with ID:', paymentId);
+      
       const txOptions = {
         contractAddress: this.contractAddress,
         contractName: this.contractName,
@@ -155,10 +176,18 @@ export class StacksService {
       };
 
       const transaction = await makeContractCall(txOptions);
-      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      const txid = transaction.txid();
+      console.log('Cancel payment transaction created with TXID:', txid);
+      console.log('Broadcasting transaction to network...');
+      
+      const broadcastResponse = await broadcastTransaction({ transaction, network: this.network });
+      
+      console.log('Broadcast response:', broadcastResponse);
+      console.log('✅ Cancel payment transaction broadcasted successfully!');
+      console.log('🔍 Check transaction on explorer:', `https://explorer.stacks.co/txid/${broadcastResponse.txid || txid}?chain=testnet`);
       
       return {
-        txid: broadcastResponse.txid,
+        txid: broadcastResponse.txid || txid,
         transaction
       };
 
@@ -170,16 +199,8 @@ export class StacksService {
 
   async registerMerchant({ feeDestination, yieldEnabled, yieldPercentage, multiSigEnabled, requiredSignatures }) {
     try {
-      // Return mock response when in mock mode
-      if (this.mockMode) {
-        console.log('Mock mode: Simulating merchant registration');
-        return {
-          txid: `mock_tx_${Date.now()}_register`,
-          transaction: null
-        };
-      }
-      console.log(this.network.client.baseUrl)
-
+      console.log('Registering merchant with:', { feeDestination, yieldEnabled, yieldPercentage, multiSigEnabled, requiredSignatures });
+      console.log('Using sender address:', this.address);
       const txOptions = {
         contractAddress: this.contractAddress,
         contractName: this.contractName,
@@ -197,26 +218,40 @@ export class StacksService {
         anchorMode: AnchorMode.Any,
         postConditionMode: PostConditionMode.Allow
       };
-
-      const transaction = await makeContractCall(txOptions);
-      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      console.log('Registering merchant with options:', txOptions);
+      console.log(this.network)
+      const transaction = await makeContractCall(txOptions); 
+      /*  contractAddress: string;
+    contractName: string;
+    functionName: string;
+    functionArgs: ClarityValue[];
+    fee?: IntegerType;
+    nonce?: IntegerType;
+    postConditionMode?: PostConditionModeName | PostConditionMode;
+    postConditions?: (PostCondition | PostConditionWire | string)[];
+    validateWithAbi?: boolean | ClarityAbi;
+    sponsored?: boolean;
+     senderKey: PublicKey;
+    */
+    
+      const txid = transaction.txid();
+      console.log('Transaction created with TXID:', txid);
+      console.log('Broadcasting transaction to network...');
       
-      return {
-        txid: broadcastResponse.txid,
-        transaction
-      };
-
+      const broadcastResponse = await broadcastTransaction({ transaction, network: this.network });
+      
+      console.log('Broadcast response:', broadcastResponse);
+      console.log('✅ Transaction broadcasted successfully!');
+      console.log('🔍 Check transaction on explorer:', `https://explorer.stacks.co/txid/${broadcastResponse.txid || txid}?chain=testnet`);
+      
+      return { txid: broadcastResponse.txid || txid, transaction };
     } catch (error) {
-      console.error('Error registering merchant on contract:', error);
       throw new Error(`Failed to register merchant: ${error.message}`);
     }
   }
 
   async createSubscription({ subscriptionId, merchant, customer, amount, intervalBlocks }) {
     try {
-      if (this.mockMode) {
-        return { txid: `mock_tx_${Date.now()}_subscription`, transaction: null };
-      }
 
       const txOptions = {
         contractAddress: this.contractAddress,
@@ -236,9 +271,17 @@ export class StacksService {
       };
 
       const transaction = await makeContractCall(txOptions);
-      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      const txid = transaction.txid();
+      console.log('Transaction created with TXID:', txid);
+      console.log('Broadcasting transaction to network...');
       
-      return { txid: broadcastResponse.txid, transaction };
+      const broadcastResponse = await broadcastTransaction({ transaction, network: this.network });
+      
+      console.log('Broadcast response:', broadcastResponse);
+      console.log('✅ Transaction broadcasted successfully!');
+      console.log('🔍 Check transaction on explorer:', `https://explorer.stacks.co/txid/${broadcastResponse.txid || txid}?chain=testnet`);
+      
+      return { txid: broadcastResponse.txid || txid, transaction };
     } catch (error) {
       throw new Error(`Failed to create subscription: ${error.message}`);
     }
@@ -270,9 +313,17 @@ export class StacksService {
       };
 
       const transaction = await makeContractCall(txOptions);
-      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      const txid = transaction.txid();
+      console.log('Transaction created with TXID:', txid);
+      console.log('Broadcasting transaction to network...');
       
-      return { txid: broadcastResponse.txid, transaction };
+      const broadcastResponse = await broadcastTransaction({ transaction, network: this.network });
+      
+      console.log('Broadcast response:', broadcastResponse);
+      console.log('✅ Transaction broadcasted successfully!');
+      console.log('🔍 Check transaction on explorer:', `https://explorer.stacks.co/txid/${broadcastResponse.txid || txid}?chain=testnet`);
+      
+      return { txid: broadcastResponse.txid || txid, transaction };
     } catch (error) {
       throw new Error(`Failed to lock Lightning payment: ${error.message}`);
     }
@@ -297,9 +348,17 @@ export class StacksService {
       };
 
       const transaction = await makeContractCall(txOptions);
-      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      const txid = transaction.txid();
+      console.log('Transaction created with TXID:', txid);
+      console.log('Broadcasting transaction to network...');
       
-      return { txid: broadcastResponse.txid, transaction };
+      const broadcastResponse = await broadcastTransaction({ transaction, network: this.network });
+      
+      console.log('Broadcast response:', broadcastResponse);
+      console.log('✅ Transaction broadcasted successfully!');
+      console.log('🔍 Check transaction on explorer:', `https://explorer.stacks.co/txid/${broadcastResponse.txid || txid}?chain=testnet`);
+      
+      return { txid: broadcastResponse.txid || txid, transaction };
     } catch (error) {
       throw new Error(`Failed to claim Lightning payment: ${error.message}`);
     }
@@ -324,9 +383,17 @@ export class StacksService {
       };
 
       const transaction = await makeContractCall(txOptions);
-      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      const txid = transaction.txid();
+      console.log('Transaction created with TXID:', txid);
+      console.log('Broadcasting transaction to network...');
       
-      return { txid: broadcastResponse.txid, transaction };
+      const broadcastResponse = await broadcastTransaction({ transaction, network: this.network });
+      
+      console.log('Broadcast response:', broadcastResponse);
+      console.log('✅ Transaction broadcasted successfully!');
+      console.log('🔍 Check transaction on explorer:', `https://explorer.stacks.co/txid/${broadcastResponse.txid || txid}?chain=testnet`);
+      
+      return { txid: broadcastResponse.txid || txid, transaction };
     } catch (error) {
       throw new Error(`Failed to refund Lightning payment: ${error.message}`);
     }
@@ -359,9 +426,17 @@ export class StacksService {
       };
 
       const transaction = await makeContractCall(txOptions);
-      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      const txid = transaction.txid();
+      console.log('Transaction created with TXID:', txid);
+      console.log('Broadcasting transaction to network...');
       
-      return { txid: broadcastResponse.txid, transaction };
+      const broadcastResponse = await broadcastTransaction({ transaction, network: this.network });
+      
+      console.log('Broadcast response:', broadcastResponse);
+      console.log('✅ Transaction broadcasted successfully!');
+      console.log('🔍 Check transaction on explorer:', `https://explorer.stacks.co/txid/${broadcastResponse.txid || txid}?chain=testnet`);
+      
+      return { txid: broadcastResponse.txid || txid, transaction };
     } catch (error) {
       throw new Error(`Failed to initiate BTC swap: ${error.message}`);
     }
@@ -390,9 +465,17 @@ export class StacksService {
       };
 
       const transaction = await makeContractCall(txOptions);
-      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      const txid = transaction.txid();
+      console.log('Transaction created with TXID:', txid);
+      console.log('Broadcasting transaction to network...');
       
-      return { txid: broadcastResponse.txid, transaction };
+      const broadcastResponse = await broadcastTransaction({ transaction, network: this.network });
+      
+      console.log('Broadcast response:', broadcastResponse);
+      console.log('✅ Transaction broadcasted successfully!');
+      console.log('🔍 Check transaction on explorer:', `https://explorer.stacks.co/txid/${broadcastResponse.txid || txid}?chain=testnet`);
+      
+      return { txid: broadcastResponse.txid || txid, transaction };
     } catch (error) {
       throw new Error(`Failed to claim BTC swap: ${error.message}`);
     }
@@ -422,9 +505,17 @@ export class StacksService {
       };
 
       const transaction = await makeContractCall(txOptions);
-      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      const txid = transaction.txid();
+      console.log('Transaction created with TXID:', txid);
+      console.log('Broadcasting transaction to network...');
       
-      return { txid: broadcastResponse.txid, transaction };
+      const broadcastResponse = await broadcastTransaction({ transaction, network: this.network });
+      
+      console.log('Broadcast response:', broadcastResponse);
+      console.log('✅ Transaction broadcasted successfully!');
+      console.log('🔍 Check transaction on explorer:', `https://explorer.stacks.co/txid/${broadcastResponse.txid || txid}?chain=testnet`);
+      
+      return { txid: broadcastResponse.txid || txid, transaction };
     } catch (error) {
       throw new Error(`Failed to create multi-sig transaction: ${error.message}`);
     }
@@ -449,9 +540,17 @@ export class StacksService {
       };
 
       const transaction = await makeContractCall(txOptions);
-      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      const txid = transaction.txid();
+      console.log('Transaction created with TXID:', txid);
+      console.log('Broadcasting transaction to network...');
       
-      return { txid: broadcastResponse.txid, transaction };
+      const broadcastResponse = await broadcastTransaction({ transaction, network: this.network });
+      
+      console.log('Broadcast response:', broadcastResponse);
+      console.log('✅ Transaction broadcasted successfully!');
+      console.log('🔍 Check transaction on explorer:', `https://explorer.stacks.co/txid/${broadcastResponse.txid || txid}?chain=testnet`);
+      
+      return { txid: broadcastResponse.txid || txid, transaction };
     } catch (error) {
       throw new Error(`Failed to sign multi-sig transaction: ${error.message}`);
     }
