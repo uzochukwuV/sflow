@@ -1,29 +1,50 @@
 import { 
   makeContractCall,
   broadcastTransaction,
+  fetchCallReadOnlyFunction as callReadOnlyFunction,
   AnchorMode,
   PostConditionMode,
   standardPrincipalCV,
   uintCV,
   bufferCV,
-  boolCV
+  boolCV,
+  stringAsciiCV,
+  randomPrivateKey
 } from '@stacks/transactions';
-import {StacksNetworks, STACKS_DEVNET, STACKS_TESTNET, STACKS_MAINNET} from '@stacks/network';
+import { STACKS_DEVNET, STACKS_TESTNET, STACKS_MAINNET, STACKS_MOCKNET } from '@stacks/network';
 
 
 export class StacksService {
   constructor() {
-    this.network = process.env.NODE_ENV === 'production' 
-      ? STACKS_MAINNET 
+    // Enable mock mode for testing when no valid private key is provided
+   
+    
+    this.network = process.env.STACKS_NETWORK === 'mainnet' 
+      ? STACKS_MAINNET
+      : process.env.STACKS_NETWORK === 'testnet'
+      ? STACKS_TESTNET
       : STACKS_DEVNET;
     
     this.contractAddress = process.env.CONTRACT_ADDRESS || 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM';
-    this.contractName = process.env.CONTRACT_NAME || 'sflow';
-    this.senderKey = process.env.SENDER_PRIVATE_KEY || 'your-private-key-here';
+    this.contractName = process.env.CONTRACT_NAME || 'bitcoin-payment-gateway';
+    this.senderKey = process.env.SENDER_PRIVATE_KEY || '753b7cc01a1a2e86221266a154af739463fce51219d97e4f856cd7200c3bd2a601';
+     // Force mock mode for testing - disable actual blockchain calls
+     console.log(this.network.client.baseUrl)
+    this.mockMode = false; // Change to false when you have a running Stacks node
   }
 
   async createPaymentIntent({ paymentId, merchant, amount, currency, method, expiresInBlocks }) {
     try {
+      // Return mock response when in mock mode
+      if (this.mockMode) {
+        console.log('Mock mode: Simulating payment intent creation');
+        return {
+          txid: `mock_tx_${Date.now()}_payment`,
+          transaction: null
+        };
+      }
+      console.log(this.network.client.baseUrl)
+
       const txOptions = {
         contractAddress: this.contractAddress,
         contractName: this.contractName,
@@ -32,7 +53,7 @@ export class StacksService {
           bufferCV(paymentId),
           standardPrincipalCV(merchant),
           uintCV(amount),
-          standardPrincipalCV(currency),
+          stringAsciiCV(currency),  // Currency should be string, not principal
           uintCV(method),
           uintCV(expiresInBlocks)
         ],
@@ -149,6 +170,16 @@ export class StacksService {
 
   async registerMerchant({ feeDestination, yieldEnabled, yieldPercentage, multiSigEnabled, requiredSignatures }) {
     try {
+      // Return mock response when in mock mode
+      if (this.mockMode) {
+        console.log('Mock mode: Simulating merchant registration');
+        return {
+          txid: `mock_tx_${Date.now()}_register`,
+          transaction: null
+        };
+      }
+      console.log(this.network.client.baseUrl)
+
       const txOptions = {
         contractAddress: this.contractAddress,
         contractName: this.contractName,
@@ -183,6 +214,15 @@ export class StacksService {
 
   async createSubscription({ subscriptionId, merchant, customer, amount, intervalBlocks }) {
     try {
+      // Return mock response when in mock mode
+      if (this.mockMode) {
+        console.log('Mock mode: Simulating subscription creation');
+        return {
+          txid: `mock_tx_${Date.now()}_subscription`,
+          transaction: null
+        };
+      }
+
       const txOptions = {
         contractAddress: this.contractAddress,
         contractName: this.contractName,
@@ -217,17 +257,31 @@ export class StacksService {
   // Read-only functions
   async getPaymentIntent(paymentId) {
     try {
-      // This would make a read-only contract call
-      // For now, return mock data
-      return {
-        id: paymentId.toString('hex'),
-        merchant: 'ST1MERCHANT...',
-        amount: 10000,
-        currency: 'ST1CURRENCY...',
-        method: 1,
-        status: 'pending',
-        created_at: new Date().toISOString()
-      };
+      // Return mock response when in mock mode
+      if (this.mockMode) {
+        console.log('Mock mode: Simulating payment intent retrieval');
+        return {
+          id: paymentId.toString('hex'),
+          merchant: 'ST1SJ3DTE5DN7X54YDH5D64R3BCB6A2AG2ZQ8YPD5',
+          amount: 100000,
+          currency: 'BTC',
+          method: 1,
+          status: 'pending',
+          created_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 24*60*60*1000).toISOString()
+        };
+      }
+
+      const result = await callReadOnlyFunction({
+        contractAddress: this.contractAddress,
+        contractName: this.contractName,
+        functionName: 'get-payment-intent',
+        functionArgs: [bufferCV(paymentId)],
+        network: this.network,
+        senderAddress: this.contractAddress
+      });
+      
+      return this.parseContractResponse(result);
     } catch (error) {
       console.error('Error fetching payment intent:', error);
       return null;
@@ -236,9 +290,16 @@ export class StacksService {
 
   async getPaymentStatus(paymentId) {
     try {
-      // This would make a read-only contract call
-      // For now, return mock status
-      return 'pending';
+      const result = await callReadOnlyFunction({
+        contractAddress: this.contractAddress,
+        contractName: this.contractName,
+        functionName: 'get-payment-status',
+        functionArgs: [bufferCV(paymentId)],
+        network: this.network,
+        senderAddress: this.contractAddress
+      });
+      
+      return this.parseStatusResponse(result);
     } catch (error) {
       console.error('Error fetching payment status:', error);
       throw new Error(`Failed to fetch payment status: ${error.message}`);
@@ -247,12 +308,59 @@ export class StacksService {
 
   async isMerchantRegistered(merchant) {
     try {
-      // This would make a read-only contract call
-      // For now, return true for all merchants
-      return true;
+      // Return mock response when in mock mode
+      if (this.mockMode) {
+        console.log('Mock mode: Simulating merchant registration check');
+        return true; // Always return true in mock mode
+      }
+
+      const result = await callReadOnlyFunction({
+        contractAddress: this.contractAddress,
+        contractName: this.contractName,
+        functionName: 'is-merchant-registered',
+        functionArgs: [standardPrincipalCV(merchant)],
+        network: this.network,
+        senderAddress: this.contractAddress
+      });
+      
+      return result.type === 'bool' && result.value === true;
     } catch (error) {
       console.error('Error checking merchant registration:', error);
       return false;
     }
+  }
+
+  parseContractResponse(result) {
+    if (result.type === 'response' && result.value.type === 'ok') {
+      const data = result.value.value;
+      return {
+        id: data.id?.value || '',
+        merchant: data.merchant?.value || '',
+        amount: parseInt(data.amount?.value || '0'),
+        currency: data.currency?.value || '',
+        method: parseInt(data.method?.value || '1'),
+        status: this.parseStatusValue(data.status?.value),
+        created_at: new Date().toISOString()
+      };
+    }
+    return null;
+  }
+
+  parseStatusResponse(result) {
+    if (result.type === 'response' && result.value.type === 'ok') {
+      return this.parseStatusValue(result.value.value);
+    }
+    return 'unknown';
+  }
+
+  parseStatusValue(statusValue) {
+    const statusMap = {
+      '0': 'pending',
+      '1': 'confirmed', 
+      '2': 'completed',
+      '3': 'failed',
+      '4': 'expired'
+    };
+    return statusMap[statusValue?.toString()] || 'unknown';
   }
 }

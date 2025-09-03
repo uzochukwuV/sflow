@@ -4,7 +4,9 @@
       "Bash(dir)",
       "Bash(dir contracts)",
       "Bash(npm install)",
-      "Bash(clarinet deployments generate:*)"
+      "Bash(clarinet deployments generate:*)",
+      "Bash(docker:*)",
+      "Bash(clarinet devnet start:*)"
     ],
     "deny": [],
     "ask": []

@@ -30,6 +30,7 @@ router.post('/register', authenticate, validateMerchantRegistration, async (req,
       success: true,
       data: {
         merchant: req.apiKey.key, // Use API key as merchant identifier
+        api_key: req.apiKey.key, // Return API key for test compatibility
         fee_destination,
         yield_enabled,
         yield_percentage,
@@ -140,6 +141,83 @@ router.post('/subscriptions', authenticate, async (req, res) => {
       success: false,
       error: {
         message: 'Failed to create subscription',
+        details: error.message
+      }
+    });
+  }
+});
+
+// Get Merchant Stats
+router.get('/stats', authenticate, async (req, res) => {
+  try {
+    const merchantAddress = req.apiKey.key;
+    
+    // Mock merchant stats data
+    res.json({
+      success: true,
+      data: {
+        merchant: merchantAddress,
+        total_volume: 0,
+        active_payments: 0,
+        success_rate: 100,
+        yield_earned: 0
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching merchant stats:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        message: 'Failed to fetch merchant stats',
+        details: error.message
+      }
+    });
+  }
+});
+
+// Create Yield Position
+router.post('/yield-positions', authenticate, async (req, res) => {
+  try {
+    const {
+      merchant,
+      amount,
+      strategy = 'STACKING',
+      duration_blocks = 2016
+    } = req.body;
+
+    if (!merchant || !amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'merchant and positive amount are required'
+        }
+      });
+    }
+
+    const positionId = Buffer.from(crypto.randomUUID().replace(/-/g, ''), 'hex').slice(0, 16);
+    
+    // Mock yield position creation
+    res.status(201).json({
+      success: true,
+      data: {
+        position_id: positionId.toString('hex'),
+        merchant,
+        amount: parseInt(amount),
+        strategy,
+        duration_blocks,
+        expected_apy: '8.5',
+        status: 'active',
+        created_at: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('Error creating yield position:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        message: 'Failed to create yield position',
         details: error.message
       }
     });
