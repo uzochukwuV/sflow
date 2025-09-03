@@ -2,6 +2,7 @@
 import { api } from './api.js';
 import { auth } from './auth.js';
 import { paymentConfig } from './config.js';
+import { getUserSession, showConnect, disconnect } from '@stacks/connect';
 
 class Dashboard {
     constructor() {
@@ -18,7 +19,7 @@ class Dashboard {
 
         this.bindEvents();
         this.loadDashboardData();
-        this.startRealTimeUpdates();
+        this.setupWalletConnection();
     }
 
     bindEvents() {
@@ -41,6 +42,18 @@ class Dashboard {
         if (logoutBtn) {
             logoutBtn.addEventListener('click', () => this.handleLogout());
         }
+
+        // Wallet connect button
+        const connectBtn = document.getElementById('connect-wallet-btn');
+        if (connectBtn) {
+            connectBtn.addEventListener('click', () => this.connectWallet());
+        }
+
+        // Register merchant button
+        const registerBtn = document.getElementById('register-merchant-btn');
+        if (registerBtn) {
+            registerBtn.addEventListener('click', () => this.registerMerchant());
+        }
     }
 
     async showCreatePaymentModal() {
@@ -51,12 +64,10 @@ class Dashboard {
     async handleLogout() {
         try {
             await auth.logout();
-            // Clear merchant data
+            disconnect();
             localStorage.removeItem('merchant_data');
-            // Redirect handled by auth.logout()
         } catch (error) {
             console.error('Logout error:', error);
-            // Force redirect even if logout fails
             window.location.href = '/landing.html';
         }
     }
@@ -77,8 +88,11 @@ class Dashboard {
 
     async loadDashboardData() {
         try {
+            // Get wallet address for API calls
+            const walletAddress = this.getWalletAddress();
+            
             // Try to load real dashboard stats
-            const stats = await api.getDashboardStats();
+            const stats = await api.getDashboardStats(walletAddress);
             if (stats.success) {
                 this.updateStats(stats.data);
             } else {
@@ -95,7 +109,6 @@ class Dashboard {
             
         } catch (error) {
             console.error('Error loading dashboard:', error);
-            // Use mock data if API fails
             this.updateStats(this.getMockStats());
             this.updateTransactions(this.getMockTransactions());
         }
@@ -222,6 +235,143 @@ class Dashboard {
         return (satoshis / 100000000).toFixed(4);
     }
 
+    setupWalletConnection() {
+        this.updateWalletStatus();
+        
+        // Add copy functionality
+        const copyBtn = document.getElementById('copy-wallet');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', () => {
+                const fullAddress = document.getElementById('wallet-address').getAttribute('data-full-address');
+                if (fullAddress) {
+                    navigator.clipboard.writeText(fullAddress).then(() => {
+                        this.showNotification('Wallet address copied!', 'success');
+                    });
+                }
+            });
+        }
+    }
+
+    async updateWalletStatus() {
+        try {
+            const userSession = getUserSession();
+            
+            if (userSession && userSession.isUserSignedIn()) {
+                const userData = userSession.loadUserData();
+                const walletAddress = userData.profile.stxAddress.testnet;
+                
+                // Display shortened wallet address
+                const shortAddress = `${walletAddress.slice(0, 8)}...${walletAddress.slice(-6)}`;
+                this.updateElement('wallet-address', shortAddress);
+                
+                // Store full address for copying
+                document.getElementById('wallet-address').setAttribute('data-full-address', walletAddress);
+                
+                // Check merchant registration status from smart contract
+                await this.checkMerchantRegistration(walletAddress);
+                
+                // Update merchant data in localStorage
+                const merchantData = JSON.parse(localStorage.getItem('merchant_data') || '{}');
+                merchantData.wallet_address = walletAddress;
+                localStorage.setItem('merchant_data', JSON.stringify(merchantData));
+                
+            } else {
+                this.updateElement('wallet-address', 'Not Connected');
+                this.updateElement('merchant-status', 'Disconnected');
+                document.getElementById('merchant-status-dot').className = 'w-2 h-2 bg-red-400 rounded-full';
+            }
+        } catch (error) {
+            console.log('Wallet not connected:', error);
+            this.updateElement('wallet-address', 'Not Connected');
+            this.updateElement('merchant-status', 'Disconnected');
+            document.getElementById('merchant-status-dot').className = 'w-2 h-2 bg-red-400 rounded-full';
+        }
+    }
+
+    async checkMerchantRegistration(walletAddress) {
+        try {
+            const isRegistered = await api.isMerchantRegistered(walletAddress);
+            const registerBtn = document.getElementById('register-merchant-btn');
+            
+            if (isRegistered) {
+                this.updateElement('merchant-status', 'Registered');
+                document.getElementById('merchant-status-dot').className = 'w-2 h-2 bg-green-400 rounded-full';
+                registerBtn.classList.add('hidden');
+            } else {
+                this.updateElement('merchant-status', 'Not Registered');
+                document.getElementById('merchant-status-dot').className = 'w-2 h-2 bg-yellow-400 rounded-full';
+                registerBtn.classList.remove('hidden');
+            }
+        } catch (error) {
+            console.error('Error checking merchant registration:', error);
+            this.updateElement('merchant-status', 'Unknown');
+            document.getElementById('merchant-status-dot').className = 'w-2 h-2 bg-gray-400 rounded-full';
+        }
+    }
+
+    async registerMerchant() {
+        try {
+            const userSession = getUserSession();
+            if (!userSession || !userSession.isUserSignedIn()) {
+                this.showNotification('Please connect your wallet first', 'error');
+                return;
+            }
+
+            const userData = userSession.loadUserData();
+            const walletAddress = userData.profile.stxAddress.testnet;
+            
+            // Get user data from auth
+            const user = await auth.getCurrentUser();
+            if (!user) {
+                this.showNotification('Please log in first', 'error');
+                return;
+            }
+
+            const merchantData = {
+                fee_destination: walletAddress,
+                yield_enabled: true,
+                yield_percentage: 500,
+                multi_sig_enabled: false,
+                required_signatures: 1,
+                user_id: user.id,
+                email: user.email
+            };
+
+            const result = await api.registerMerchant(merchantData);
+            
+            if (result.success) {
+                this.showNotification('Merchant registered successfully!', 'success');
+                await this.checkMerchantRegistration(walletAddress);
+            } else {
+                this.showNotification('Registration failed: ' + result.error.message, 'error');
+            }
+        } catch (error) {
+            console.error('Merchant registration error:', error);
+            this.showNotification('Registration failed: ' + error.message, 'error');
+        }
+    }
+
+    async connectWallet() {
+        try {
+            await showConnect({
+                appDetails: {
+                    name: 'sPay',
+                    icon: window.location.origin + '/vite.svg'
+                },
+                onFinish: async () => {
+                    await this.updateWalletStatus();
+                    this.showNotification('Wallet connected successfully!', 'success');
+                },
+                onCancel: () => {
+                    this.showNotification('Wallet connection cancelled', 'error');
+                }
+            });
+        } catch (error) {
+            console.error('Wallet connection error:', error);
+            this.showNotification('Failed to connect wallet', 'error');
+        }
+    }
+
     updateElement(id, value) {
         const element = document.getElementById(id);
         if (element) {
@@ -229,11 +379,33 @@ class Dashboard {
         }
     }
 
-    startRealTimeUpdates() {
-        // Update stats every 30 seconds
-        setInterval(() => {
-            this.loadDashboardData();
-        }, 30000);
+
+
+    getWalletAddress() {
+        try {
+            const userSession = getUserSession();
+            if (userSession && userSession.isUserSignedIn()) {
+                const userData = userSession.loadUserData();
+                return userData.profile.stxAddress.testnet;
+            }
+        } catch (error) {
+            console.log('No wallet connected');
+        }
+        return null;
+    }
+
+    showNotification(message, type) {
+        const notification = document.createElement('div');
+        notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg transition-all duration-300 ${
+            type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+        }`;
+        notification.textContent = message;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
     }
 
     async loadSectionData(section) {

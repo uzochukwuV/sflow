@@ -61,6 +61,30 @@ Logout
 <h1 class="text-white text-3xl font-bold tracking-tight">Multi-Layer Bitcoin Dashboard</h1>
 <p class="text-zinc-400 text-sm font-normal">Enterprise payment processing across sBTC, Lightning, Bitcoin L1, and Liquid networks.</p>
 </div>
+<div class="flex flex-col items-end gap-2">
+<div class="flex items-center gap-3 bg-[#212121] border border-zinc-700 rounded-lg px-4 py-2">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 bg-green-400 rounded-full" id="merchant-status-dot"></div>
+<span class="text-zinc-400 text-sm">Status:</span>
+<span class="text-green-400 text-sm font-medium" id="merchant-status">Active</span>
+<button id="register-merchant-btn" class="hidden bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs font-medium transition-colors ml-2">
+Register
+</button>
+</div>
+</div>
+<div class="flex items-center gap-3 bg-[#212121] border border-zinc-700 rounded-lg px-4 py-2">
+<span class="text-zinc-400 text-sm">Wallet:</span>
+<code class="text-[var(--sbtc-orange)] text-sm font-mono" id="wallet-address">Loading...</code>
+<button id="copy-wallet" class="text-zinc-400 hover:text-white transition-colors" title="Copy address">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+</svg>
+</button>
+<button id="connect-wallet-btn" class="bg-[var(--sbtc-orange)] hover:bg-orange-500 text-white px-3 py-1 rounded text-xs font-medium transition-colors">
+Connect
+</button>
+</div>
+</div>
 </div>
 <!-- Multi-Layer Payment Stats -->
 <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">

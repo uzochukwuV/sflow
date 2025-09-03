@@ -14,61 +14,46 @@ export class PaymentMethods {
     }
 
     // Create payment intent for any method
-    async createPaymentIntent(method, amount, recipientAddress, options = {}) {
+    async createPaymentIntent(merchantAddress, amount, currency, method, options = {}) {
         const methodConfig = this.supportedMethods[method];
         if (!methodConfig) {
             throw new Error(`Unsupported payment method: ${method}`);
         }
 
-        switch (method) {
-            case 1: // sBTC
-                return await this.createSBTCPayment(amount, recipientAddress, options);
-            case 2: // Lightning
-                return await this.createLightningPayment(amount, options);
-            case 3: // Bitcoin L1
-                return await this.createBitcoinPayment(amount, recipientAddress, options);
-            case 4: // Liquid
-                return await this.createLiquidPayment(amount, recipientAddress, options);
-            default:
-                throw new Error(`Method ${method} not implemented`);
+        // Create payment intent via API first
+        const apiResponse = await api.createPaymentIntent({
+            merchant: merchantAddress,
+            amount: amount,
+            currency: currency || 'BTC',
+            method: method,
+            expires_in_blocks: options.expiresInBlocks || 144,
+            metadata: options.metadata || {}
+        });
+
+        if (!apiResponse.success) {
+            throw new Error(apiResponse.error.message);
         }
+
+        return {
+            success: true,
+            paymentId: apiResponse.data.id,
+            method: method,
+            amount: amount,
+            merchant: merchantAddress,
+            status: 'pending',
+            expiresAt: apiResponse.data.expires_at,
+            qrCode: this.generatePaymentQR(apiResponse.data.id, amount, method)
+        };
     }
 
-    // sBTC Payment Implementation
-    async createSBTCPayment(amount, recipientAddress, options = {}) {
+    // Process payment for any method
+    async processPayment(paymentId) {
         try {
-            // Create payment intent via API
-            const apiResponse = await api.createPaymentIntent({
-                method: 1,
-                amount: amount,
-                recipient: recipientAddress,
-                memo: options.memo || '',
-                expires_in_blocks: options.expiresInBlocks || 144 // 24 hours
+            const result = await api.request(`/payments/intents/${paymentId}/process`, {
+                method: 'POST'
             });
-
-            if (!apiResponse.success) {
-                throw new Error(apiResponse.error.message);
-            }
-
-            // Create blockchain payment intent
-            const blockchainIntent = await this.sbtc.createPaymentIntent(
-                amount,
-                recipientAddress,
-                options.memo
-            );
-
-            return {
-                success: true,
-                paymentId: apiResponse.data.payment_id,
-                method: 1,
-                amount: amount,
-                recipient: recipientAddress,
-                qrCode: this.sbtc.generatePaymentQR(amount, recipientAddress, options.memo),
-                blockchainTx: blockchainIntent.txOptions,
-                estimatedFee: blockchainIntent.estimatedFee,
-                confirmationTime: blockchainIntent.confirmationTime,
-                expiresAt: new Date(Date.now() + (options.expiresInBlocks || 144) * 10 * 60 * 1000)
-            };
+            
+            return result;
         } catch (error) {
             return {
                 success: false,
@@ -77,23 +62,20 @@ export class PaymentMethods {
         }
     }
 
-    // Execute sBTC payment
-    async executeSBTCPayment(paymentIntent) {
-        return new Promise((resolve) => {
-            this.sbtc.executePayment(
-                paymentIntent,
-                (result) => {
-                    if (result.success) {
-                        // Update payment status via API
-                        this.updatePaymentStatus(paymentIntent.paymentId, 'COMPLETED', result.txId);
-                    }
-                    resolve(result);
-                },
-                () => {
-                    resolve({ success: false, error: 'Payment cancelled by user' });
-                }
-            );
-        });
+    // Complete payment
+    async completePayment(paymentId) {
+        try {
+            const result = await api.request(`/payments/intents/${paymentId}/complete`, {
+                method: 'POST'
+            });
+            
+            return result;
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
+        }
     }
 
     // Lightning Payment (placeholder)
@@ -123,18 +105,22 @@ export class PaymentMethods {
         };
     }
 
-    // Update payment status
-    async updatePaymentStatus(paymentId, status, txId = null) {
+    // Generate payment QR code
+    generatePaymentQR(paymentId, amount, method) {
+        const paymentUrl = `${window.location.origin}/pay/${paymentId}`;
+        return `data:image/svg+xml;base64,${btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="white"/><text x="100" y="100" text-anchor="middle" font-size="12">QR: ${paymentId}</text></svg>`)}`;
+    }
+
+    // Get payment status
+    async getPaymentStatus(paymentId) {
         try {
-            await api.request(`/payments/${paymentId}/status`, {
-                method: 'PUT',
-                body: JSON.stringify({
-                    status: status,
-                    transaction_id: txId
-                })
-            });
+            const result = await api.request(`/payments/intents/${paymentId}/status`);
+            return result;
         } catch (error) {
-            console.error('Failed to update payment status:', error);
+            return {
+                success: false,
+                error: error.message
+            };
         }
     }
 

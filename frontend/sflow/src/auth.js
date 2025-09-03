@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { supabaseConfig } from './config.js';
+import {  disconnect } from '@stacks/connect';
+
 
 // Initialize Supabase client
 const supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
@@ -79,6 +81,9 @@ export class AuthService {
 
     async logout() {
         const { error } = await this.supabase.auth.signOut();
+        
+        disconnect();
+    
         if (!error) {
             window.location.href = '/landing.html';
         }

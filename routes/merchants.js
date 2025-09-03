@@ -53,11 +53,38 @@ router.post('/register', authenticate, validateMerchantRegistration, async (req,
   }
 });
 
-// Get Merchant Info
-router.get('/me', authenticate, async (req, res) => {
+// Check Merchant Registration Status
+router.get('/check/:address', authenticate, async (req, res) => {
   try {
-    const merchantAddress = req.apiKey.key; // Simplified - use API key as identifier
-    const isRegistered = await stacksService.isMerchantRegistered(merchantAddress);
+    const { address } = req.params;
+    const isRegistered = await stacksService.isMerchantRegistered(address);
+
+    res.json({
+      success: true,
+      data: {
+        address: address,
+        registered: isRegistered,
+        checked_at: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('Error checking merchant registration:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        message: 'Failed to check merchant registration',
+        details: error.message
+      }
+    });
+  }
+});
+
+// Get Merchant Info by Address
+router.get('/:address', authenticate, async (req, res) => {
+  try {
+    const { address } = req.params;
+    const isRegistered = await stacksService.isMerchantRegistered(address);
 
     if (!isRegistered) {
       return res.status(404).json({
@@ -68,15 +95,12 @@ router.get('/me', authenticate, async (req, res) => {
       });
     }
 
-    // In a real implementation, fetch from contract
     res.json({
       success: true,
       data: {
-        merchant: merchantAddress,
-        name: req.apiKey.name,
+        merchant: address,
         registered: true,
-        permissions: req.apiKey.permissions,
-        created_at: req.apiKey.created_at
+        checked_at: new Date().toISOString()
       }
     });
 
@@ -147,16 +171,26 @@ router.post('/subscriptions', authenticate, async (req, res) => {
   }
 });
 
-// Get Merchant Stats
-router.get('/stats', authenticate, async (req, res) => {
+// Get Merchant Stats by Address
+router.get('/stats/:address', authenticate, async (req, res) => {
   try {
-    const merchantAddress = req.apiKey.key;
+    const { address } = req.params;
+    const isRegistered = await stacksService.isMerchantRegistered(address);
+
+    if (!isRegistered) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          message: 'Merchant not registered'
+        }
+      });
+    }
     
-    // Mock merchant stats data
+    // TODO: Fetch real stats from smart contract
     res.json({
       success: true,
       data: {
-        merchant: merchantAddress,
+        merchant: address,
         total_volume: 0,
         active_payments: 0,
         success_rate: 100,

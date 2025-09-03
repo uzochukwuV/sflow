@@ -45,11 +45,11 @@ export class ApiService {
     }
 
 
-    async getMerchantProfile() {
-        console.log('[API] Fetching merchant profile...');
+    async getMerchantProfile(walletAddress) {
+        console.log('[API] Fetching merchant profile for:', walletAddress);
         
         try {
-            const response = await this.request('/merchants/me');
+            const response = await this.request(`/merchants/${walletAddress}`);
             console.log('[API] Merchant profile response:', response);
             return response;
         } catch (error) {
@@ -58,17 +58,7 @@ export class ApiService {
         }
     }
 
-    // Wave 1 & 2: Multi-Layer Payment Intents
-    async createPaymentIntent(paymentData) {
-        return this.request('/payments/intents', {
-            method: 'POST',
-            body: JSON.stringify({
-                ...paymentData,
-                // Support all 4 Bitcoin layers
-                method: paymentData.method || 1, // 1=sBTC, 2=Lightning, 3=BTC L1, 4=Liquid
-            })
-        });
-    }
+
 
     async getPaymentIntent(intentId) {
         return this.request(`/payments/intents/${intentId}`);
@@ -104,10 +94,14 @@ export class ApiService {
     }
 
     // Dashboard Analytics
-    async getDashboardStats() {
+    async getDashboardStats(walletAddress) {
         try {
-            return await this.request('/merchants/stats');
+            if (!walletAddress) {
+                throw new Error('Wallet address required');
+            }
+            return await this.request(`/merchants/stats/${walletAddress}`);
         } catch (error) {
+            console.log('[API] Using mock stats data:', error.message);
             // Return mock data structure if API fails
             return {
                 success: false,
@@ -124,8 +118,8 @@ export class ApiService {
     // Enhanced merchant registration with detailed logging
     async registerMerchant(merchantData) {
         console.log('[API] Registering merchant with data:', merchantData);
-        
-        try {
+        // /api/v1/merchants/register endpoint
+        try { 
             const response = await this.request('/merchants/register', {
                 method: 'POST',
                 body: JSON.stringify(merchantData)
@@ -145,12 +139,44 @@ export class ApiService {
         }
     }
 
-    // Check if merchant is registered
-    async isMerchantRegistered() {
+    // Create payment intent with proper merchant validation
+    async createPaymentIntent(paymentData) {
+        console.log('[API] Creating payment intent:', paymentData);
+        
+        try {
+            const response = await this.request('/payments/intents', {
+                method: 'POST',
+                body: JSON.stringify(paymentData)
+            });
+            
+            console.log('[API] Payment intent response:', response);
+            return response;
+        } catch (error) {
+            console.error('[API] Payment intent creation failed:', error);
+            throw error;
+        }
+    }
+
+    // Check if merchant is registered in smart contract
+    async isMerchantRegistered(walletAddress) {
+        console.log('[API] Checking merchant registration status for:', walletAddress);
+        
+        try {
+            const response = await this.request(`/merchants/check/${walletAddress}`);
+            console.log('[API] Merchant registration check result:', response);
+            return response.success && response.data.registered;
+        } catch (error) {
+            console.log('[API] Merchant registration check failed:', error.message);
+            return false;
+        }
+    }
+
+    // Check if merchant is registered (legacy method)
+    async getMerchantRegistrationStatus(walletAddress) {
         console.log('[API] Checking merchant registration status...');
         
         try {
-            const response = await this.getMerchantProfile();
+            const response = await this.getMerchantProfile(walletAddress);
             console.log('[API] Merchant profile check result:', response);
             return response.success;
         } catch (error) {

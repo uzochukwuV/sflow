@@ -2,6 +2,8 @@
 import { auth } from './auth.js';
 import { api } from './api.js';
 import { paymentConfig } from './config.js';
+import { authenticate, showConnect, getUserSession, disconnect } from '@stacks/connect';
+
 
 class SFlowApp {
     constructor() {
@@ -63,6 +65,7 @@ class SFlowApp {
 
         // Form submissions
         document.addEventListener('submit', (e) => {
+            
             if (e.target.id === 'signup-form') {
                 e.preventDefault();
                 this.handleSignup(e.target);
@@ -96,35 +99,61 @@ class SFlowApp {
 
         try {
             this.showLoading(form);
-            const result = await this.auth.signup(email, password, username, phone);
             
-            if (result.success) {
-                // Auto-register merchant after successful signup
-                await this.registerMerchant(result.user);
+            // Step 1: Create Supabase account
+            
+            
+           
+                // Step 2: Connect wallet before merchant registration
+                const walletAddress = await this.connectWallet();
+                const result = await this.auth.signup(email, password, username, phone);
+                
+                // Step 3: Register merchant with wallet address
+                await this.registerMerchant(result.user, walletAddress);
+                
                 this.showSuccess('Account created successfully! Check your email for verification.');
                 setTimeout(() => {
                     window.location.href = '/login.html';
                 }, 2000);
-            } else {
-                this.showError(result.message);
-            }
+           
         } catch (error) {
-            this.showError(error.message);
+            if (error.message.includes('User rejected') || error.message.includes('cancelled')) {
+                this.showError('Wallet connection required to complete merchant registration');
+            } else {
+                this.showError(error.message);
+            }
         } finally {
             this.hideLoading(form);
         }
     }
 
-    async registerMerchant(user) {
+
+    
+
+    async connectWallet() {
+        let result = null;
+        await authenticate({
+            appDetails: {
+                name: 'sPay',
+                icon: window.location.origin + '/vite.svg'
+            },
+           
+            onFinish: (data) => {
+
+                console.log('Authentication finished:', data);
+            }
+        });
+       
+        console.log('Authentication data:', result);
+        return  result?.profile?.stxAddress?.testnet;
+    }
+
+
+    async registerMerchant(user, walletAddress) {
         try {
-            const { api } = await import('./api.js');
-            
-            // Use testnet wallet address - backend handles smart contract interaction
-            const merchantAddress = 'ST219X1CZBCMQC37QC4GBYH8E1XW1X11EXNQ3SFWZ';
-            
-            // Register merchant via backend (which handles smart contract calls)
+            // Register merchant with actual wallet address
             const merchantData = {
-                fee_destination: merchantAddress,
+                fee_destination: walletAddress,
                 yield_enabled: true,
                 yield_percentage: 500, // 5% in basis points
                 multi_sig_enabled: false,
@@ -136,16 +165,16 @@ class SFlowApp {
             const result = await api.registerMerchant(merchantData);
             
             if (result.success) {
-                // Store merchant info
+                // Store merchant info with wallet address
                 const merchantInfo = {
                     ...result.data,
-                    testnet_address: merchantAddress
+                    wallet_address: walletAddress
                 };
                 localStorage.setItem('merchant_data', JSON.stringify(merchantInfo));
             }
         } catch (error) {
-            console.error('Auto merchant registration failed:', error);
-            // Don't fail signup if merchant registration fails
+            console.error('Merchant registration failed:', error);
+            throw error; // Fail signup if merchant registration fails
         }
     }
 
@@ -157,6 +186,7 @@ class SFlowApp {
         try {
             this.showLoading(form);
             const result = await this.auth.login(email, password);
+            await this.connectWallet();
             
             if (result.success) {
                 this.showSuccess('Login successful! Redirecting...');

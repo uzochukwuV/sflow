@@ -20,6 +20,7 @@
   "license": "MIT",
   "dependencies": {
     "@hirosystems/clarinet-sdk": "^3.0.2",
+    "@stacks/connect": "^8.1.9",
     "@stacks/transactions": "^7.0.6",
     "axios": "^1.11.0",
     "chokidar-cli": "^3.0.0",

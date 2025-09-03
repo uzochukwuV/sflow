@@ -142,24 +142,35 @@ export class PaymentModal {
         const recipient = document.getElementById('recipient-address').value;
         const memo = document.getElementById('payment-memo').value;
 
+        // Get merchant address from localStorage
+        const merchantData = JSON.parse(localStorage.getItem('merchant_data') || '{}');
+        const merchantAddress = merchantData.wallet_address;
+        
+        if (!merchantAddress) {
+            this.showError('Merchant wallet not connected');
+            return;
+        }
+
         // Validate inputs
         if (!amount || amount < 1000) {
             this.showError('Amount must be at least 1000 satoshis');
             return;
         }
 
-        if (!paymentMethods.isValidAddress(method, recipient)) {
-            this.showError('Invalid recipient address');
-            return;
-        }
-
         try {
             this.showLoading();
             
-            const paymentIntent = await paymentMethods.createPaymentIntent(method, amount, recipient, {
-                memo: memo,
-                expiresInBlocks: 144
-            });
+            const paymentIntent = await paymentMethods.createPaymentIntent(
+                merchantAddress,
+                amount,
+                'BTC',
+                method,
+                {
+                    memo: memo,
+                    expiresInBlocks: 144,
+                    metadata: { recipient }
+                }
+            );
 
             if (!paymentIntent.success) {
                 throw new Error(paymentIntent.error);
@@ -188,9 +199,9 @@ export class PaymentModal {
         });
 
         // Update display
-        document.getElementById('display-amount').textContent = paymentMethods.formatAmount(payment.method, payment.amount);
-        document.getElementById('display-fee').textContent = `${payment.estimatedFee} sats`;
-        document.getElementById('display-time').textContent = payment.confirmationTime;
+        document.getElementById('display-amount').textContent = `${(payment.amount / 100000000).toFixed(8)} BTC`;
+        document.getElementById('display-fee').textContent = '~250 sats';
+        document.getElementById('display-time').textContent = '~2 seconds';
 
         // Show result view
         document.getElementById('payment-form').classList.add('hidden');
@@ -203,15 +214,23 @@ export class PaymentModal {
         try {
             this.showLoading();
             
-            const result = await paymentMethods.executeSBTCPayment(this.currentPayment);
+            // Process payment through API
+            const result = await paymentMethods.processPayment(this.currentPayment.paymentId);
             
             if (result.success) {
-                this.showSuccess('Payment executed successfully!');
-                setTimeout(() => {
-                    this.close();
-                    // Refresh dashboard
-                    window.location.reload();
-                }, 2000);
+                // Complete payment
+                const completeResult = await paymentMethods.completePayment(this.currentPayment.paymentId);
+                
+                if (completeResult.success) {
+                    this.showSuccess('Payment completed successfully!');
+                    setTimeout(() => {
+                        this.close();
+                        // Refresh dashboard
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    this.showError(completeResult.error);
+                }
             } else {
                 this.showError(result.error);
             }
