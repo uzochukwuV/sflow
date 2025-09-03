@@ -80,10 +80,89 @@ export const validateMerchantRegistration = (req, res, next) => {
   if (errors.length > 0) {
     return res.status(400).json({
       success: false,
-      error: {
-        message: 'Validation failed',
-        details: errors
-      }
+      error: { message: 'Validation failed', details: errors }
+    });
+  }
+
+  next();
+};
+
+export const validateLightningLock = (req, res, next) => {
+  const { payment_id, amount, preimage_hash, recipient } = req.body;
+  const errors = [];
+
+  if (!payment_id || !/^[0-9a-fA-F]{32}$/.test(payment_id)) {
+    errors.push('payment_id must be a 32-character hex string');
+  }
+
+  if (!amount || amount <= 0) {
+    errors.push('amount must be a positive number');
+  }
+
+  if (!preimage_hash || !/^[0-9a-fA-F]{64}$/.test(preimage_hash)) {
+    errors.push('preimage_hash must be a 64-character hex string');
+  }
+
+  if (!recipient) {
+    errors.push('recipient is required');
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({
+      success: false,
+      error: { message: 'Validation failed', details: errors }
+    });
+  }
+
+  next();
+};
+
+export const validateAtomicSwap = (req, res, next) => {
+  const { btc_txid, amount, btc_address, recipient } = req.body;
+  const errors = [];
+
+  if (!btc_txid || !/^[0-9a-fA-F]{64}$/.test(btc_txid)) {
+    errors.push('btc_txid must be a 64-character hex string');
+  }
+
+  if (!amount || amount <= 0) {
+    errors.push('amount must be a positive number');
+  }
+
+  if (!btc_address) {
+    errors.push('btc_address is required');
+  }
+
+  if (!recipient) {
+    errors.push('recipient is required');
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({
+      success: false,
+      error: { message: 'Validation failed', details: errors }
+    });
+  }
+
+  next();
+};
+
+export const validateMultiSigTx = (req, res, next) => {
+  const { amount, destination } = req.body;
+  const errors = [];
+
+  if (!amount || amount <= 0) {
+    errors.push('amount must be a positive number');
+  }
+
+  if (!destination) {
+    errors.push('destination is required');
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({
+      success: false,
+      error: { message: 'Validation failed', details: errors }
     });
   }
 

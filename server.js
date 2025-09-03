@@ -10,6 +10,8 @@ import rateLimit from 'express-rate-limit';
 import paymentRoutes from './routes/payments.js';
 import merchantRoutes from './routes/merchants.js';
 import webhookRoutes from './routes/webhooks.js';
+import lightningRoutes from './routes/lightning.js';
+import swapRoutes from './routes/swaps.js';
 
 // Load environment variables
 dotenv.config();
@@ -56,6 +58,8 @@ app.use(express.static(frontendPath));
 app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/v1/merchants', merchantRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
+app.use('/api/v1/lightning', lightningRoutes);
+app.use('/api/v1/swaps', swapRoutes);
 
 // Health check endpoint
 app.get('/api/v1/health', (req, res) => {

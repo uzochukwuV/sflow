@@ -229,7 +229,6 @@ router.get('/yield', authenticate, async (req, res) => {
   try {
     const merchantAddress = req.apiKey.key;
     
-    // Mock yield position data
     res.json({
       success: true,
       data: {
@@ -240,15 +239,122 @@ router.get('/yield', authenticate, async (req, res) => {
         estimated_apy: '5.0%'
       }
     });
-
   } catch (error) {
-    console.error('Error fetching yield position:', error);
     res.status(500).json({
       success: false,
-      error: {
-        message: 'Failed to fetch yield position',
-        details: error.message
+      error: { message: 'Failed to fetch yield position', details: error.message }
+    });
+  }
+});
+
+// Yield Estimation
+router.get('/yield/estimate/:amount/:duration', authenticate, async (req, res) => {
+  try {
+    const { amount, duration } = req.params;
+    const estimatedYield = await stacksService.estimateYield(parseInt(amount), parseInt(duration));
+
+    res.json({
+      success: true,
+      data: {
+        amount: parseInt(amount),
+        duration_blocks: parseInt(duration),
+        estimated_yield: estimatedYield,
+        apy: ((estimatedYield / parseInt(amount)) * (52560 / parseInt(duration)) * 100).toFixed(2) + '%'
       }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to estimate yield', details: error.message }
+    });
+  }
+});
+
+// Multi-Signature Transaction Routes
+router.post('/multisig/transactions', authenticate, async (req, res) => {
+  try {
+    const { amount, destination } = req.body;
+
+    if (!amount || !destination || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'amount and destination are required' }
+      });
+    }
+
+    const txId = Buffer.from(crypto.randomUUID().replace(/-/g, ''), 'hex').slice(0, 32);
+    
+    const result = await stacksService.createMultiSigTx({
+      txId,
+      amount: parseInt(amount),
+      destination
+    });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        tx_id: txId.toString('hex'),
+        merchant: req.apiKey.key,
+        amount: parseInt(amount),
+        destination,
+        signatures: [req.apiKey.key],
+        executed: false,
+        contract_tx_id: result.txid,
+        created_at: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to create multi-sig transaction', details: error.message }
+    });
+  }
+});
+
+router.post('/multisig/transactions/:id/sign', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const txId = Buffer.from(id, 'hex');
+
+    const result = await stacksService.signMultiSigTx(txId);
+
+    res.json({
+      success: true,
+      data: {
+        tx_id: id,
+        signer: req.apiKey.key,
+        contract_tx_id: result.txid,
+        signed_at: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to sign multi-sig transaction', details: error.message }
+    });
+  }
+});
+
+// Process Subscription Payment
+router.post('/subscriptions/:id/process', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const subscriptionId = Buffer.from(id, 'hex');
+
+    // This would call the process-subscription-payment function
+    // For now, return success
+    res.json({
+      success: true,
+      data: {
+        subscription_id: id,
+        processed_at: new Date().toISOString(),
+        next_payment: new Date(Date.now() + 24*60*60*1000).toISOString()
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to process subscription payment', details: error.message }
     });
   }
 });

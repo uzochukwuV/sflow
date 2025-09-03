@@ -63,7 +63,7 @@ plan:
     - id: 0
       transactions:
         - emulated-contract-publish:
-            contract-name: bitcoin-payment-gateway
+            contract-name: sflow
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
             path: "contracts\\sflow.clar"
             clarity-version: 3

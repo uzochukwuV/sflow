@@ -29,7 +29,7 @@ export class StacksService {
     this.contractName = process.env.CONTRACT_NAME || 'bitcoin-payment-gateway';
     this.senderKey = process.env.SENDER_PRIVATE_KEY || '753b7cc01a1a2e86221266a154af739463fce51219d97e4f856cd7200c3bd2a601';
      // Force mock mode for testing - disable actual blockchain calls
-     console.log(this.network.client.baseUrl)
+    this.network.client.baseUrl = "https://api.platform.hiro.so/v1/ext/46395296e61d1a86dcebd10915bb8fd9/stacks-blockchain-api"
     this.mockMode = false; // Change to false when you have a running Stacks node
   }
 
@@ -214,13 +214,8 @@ export class StacksService {
 
   async createSubscription({ subscriptionId, merchant, customer, amount, intervalBlocks }) {
     try {
-      // Return mock response when in mock mode
       if (this.mockMode) {
-        console.log('Mock mode: Simulating subscription creation');
-        return {
-          txid: `mock_tx_${Date.now()}_subscription`,
-          transaction: null
-        };
+        return { txid: `mock_tx_${Date.now()}_subscription`, transaction: null };
       }
 
       const txOptions = {
@@ -243,14 +238,222 @@ export class StacksService {
       const transaction = await makeContractCall(txOptions);
       const broadcastResponse = await broadcastTransaction(transaction, this.network);
       
-      return {
-        txid: broadcastResponse.txid,
-        transaction
+      return { txid: broadcastResponse.txid, transaction };
+    } catch (error) {
+      throw new Error(`Failed to create subscription: ${error.message}`);
+    }
+  }
+
+  // Lightning Network HTLC Functions
+  async lockLightningPayment({ preimageHash, paymentId, amount, timelock, recipient }) {
+    try {
+      if (this.mockMode) {
+        return { txid: `mock_tx_${Date.now()}_lightning_lock`, transaction: null };
+      }
+
+      const txOptions = {
+        contractAddress: this.contractAddress,
+        contractName: this.contractName,
+        functionName: 'lock-lightning-payment',
+        functionArgs: [
+          bufferCV(preimageHash),
+          bufferCV(paymentId),
+          uintCV(amount),
+          uintCV(timelock),
+          standardPrincipalCV(recipient)
+        ],
+        senderKey: this.senderKey,
+        validateWithAbi: false,
+        network: this.network,
+        anchorMode: AnchorMode.Any,
+        postConditionMode: PostConditionMode.Allow
       };
 
+      const transaction = await makeContractCall(txOptions);
+      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      
+      return { txid: broadcastResponse.txid, transaction };
     } catch (error) {
-      console.error('Error creating subscription on contract:', error);
-      throw new Error(`Failed to create subscription: ${error.message}`);
+      throw new Error(`Failed to lock Lightning payment: ${error.message}`);
+    }
+  }
+
+  async claimLightningPayment(preimage) {
+    try {
+      if (this.mockMode) {
+        return { txid: `mock_tx_${Date.now()}_lightning_claim`, transaction: null };
+      }
+
+      const txOptions = {
+        contractAddress: this.contractAddress,
+        contractName: this.contractName,
+        functionName: 'claim-lightning-payment',
+        functionArgs: [bufferCV(preimage)],
+        senderKey: this.senderKey,
+        validateWithAbi: false,
+        network: this.network,
+        anchorMode: AnchorMode.Any,
+        postConditionMode: PostConditionMode.Allow
+      };
+
+      const transaction = await makeContractCall(txOptions);
+      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      
+      return { txid: broadcastResponse.txid, transaction };
+    } catch (error) {
+      throw new Error(`Failed to claim Lightning payment: ${error.message}`);
+    }
+  }
+
+  async refundLightningPayment(preimageHash) {
+    try {
+      if (this.mockMode) {
+        return { txid: `mock_tx_${Date.now()}_lightning_refund`, transaction: null };
+      }
+
+      const txOptions = {
+        contractAddress: this.contractAddress,
+        contractName: this.contractName,
+        functionName: 'refund-lightning-payment',
+        functionArgs: [bufferCV(preimageHash)],
+        senderKey: this.senderKey,
+        validateWithAbi: false,
+        network: this.network,
+        anchorMode: AnchorMode.Any,
+        postConditionMode: PostConditionMode.Allow
+      };
+
+      const transaction = await makeContractCall(txOptions);
+      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      
+      return { txid: broadcastResponse.txid, transaction };
+    } catch (error) {
+      throw new Error(`Failed to refund Lightning payment: ${error.message}`);
+    }
+  }
+
+  // Atomic Swap Functions
+  async initiateBtcSwap({ swapId, btcTxid, btcOutputIndex, amount, btcAddress, recipient }) {
+    try {
+      if (this.mockMode) {
+        return { txid: `mock_tx_${Date.now()}_btc_swap`, transaction: null };
+      }
+
+      const txOptions = {
+        contractAddress: this.contractAddress,
+        contractName: this.contractName,
+        functionName: 'initiate-btc-swap',
+        functionArgs: [
+          bufferCV(swapId),
+          bufferCV(btcTxid),
+          uintCV(btcOutputIndex),
+          uintCV(amount),
+          bufferCV(btcAddress),
+          standardPrincipalCV(recipient)
+        ],
+        senderKey: this.senderKey,
+        validateWithAbi: false,
+        network: this.network,
+        anchorMode: AnchorMode.Any,
+        postConditionMode: PostConditionMode.Allow
+      };
+
+      const transaction = await makeContractCall(txOptions);
+      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      
+      return { txid: broadcastResponse.txid, transaction };
+    } catch (error) {
+      throw new Error(`Failed to initiate BTC swap: ${error.message}`);
+    }
+  }
+
+  async claimBtcSwap({ swapId, block, prevBlocks, tx, proof }) {
+    try {
+      if (this.mockMode) {
+        return { txid: `mock_tx_${Date.now()}_btc_claim`, transaction: null };
+      }
+
+      const txOptions = {
+        contractAddress: this.contractAddress,
+        contractName: this.contractName,
+        functionName: 'claim-btc-swap',
+        functionArgs: [
+          bufferCV(swapId),
+          // Block and proof structures would need proper formatting
+          // This is simplified for the example
+        ],
+        senderKey: this.senderKey,
+        validateWithAbi: false,
+        network: this.network,
+        anchorMode: AnchorMode.Any,
+        postConditionMode: PostConditionMode.Allow
+      };
+
+      const transaction = await makeContractCall(txOptions);
+      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      
+      return { txid: broadcastResponse.txid, transaction };
+    } catch (error) {
+      throw new Error(`Failed to claim BTC swap: ${error.message}`);
+    }
+  }
+
+  // Multi-Signature Functions
+  async createMultiSigTx({ txId, amount, destination }) {
+    try {
+      if (this.mockMode) {
+        return { txid: `mock_tx_${Date.now()}_multisig`, transaction: null };
+      }
+
+      const txOptions = {
+        contractAddress: this.contractAddress,
+        contractName: this.contractName,
+        functionName: 'create-multi-sig-tx',
+        functionArgs: [
+          bufferCV(txId),
+          uintCV(amount),
+          standardPrincipalCV(destination)
+        ],
+        senderKey: this.senderKey,
+        validateWithAbi: false,
+        network: this.network,
+        anchorMode: AnchorMode.Any,
+        postConditionMode: PostConditionMode.Allow
+      };
+
+      const transaction = await makeContractCall(txOptions);
+      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      
+      return { txid: broadcastResponse.txid, transaction };
+    } catch (error) {
+      throw new Error(`Failed to create multi-sig transaction: ${error.message}`);
+    }
+  }
+
+  async signMultiSigTx(txId) {
+    try {
+      if (this.mockMode) {
+        return { txid: `mock_tx_${Date.now()}_multisig_sign`, transaction: null };
+      }
+
+      const txOptions = {
+        contractAddress: this.contractAddress,
+        contractName: this.contractName,
+        functionName: 'sign-multi-sig-tx',
+        functionArgs: [bufferCV(txId)],
+        senderKey: this.senderKey,
+        validateWithAbi: false,
+        network: this.network,
+        anchorMode: AnchorMode.Any,
+        postConditionMode: PostConditionMode.Allow
+      };
+
+      const transaction = await makeContractCall(txOptions);
+      const broadcastResponse = await broadcastTransaction(transaction, this.network);
+      
+      return { txid: broadcastResponse.txid, transaction };
+    } catch (error) {
+      throw new Error(`Failed to sign multi-sig transaction: ${error.message}`);
     }
   }
 
@@ -308,10 +511,8 @@ export class StacksService {
 
   async isMerchantRegistered(merchant) {
     try {
-      // Return mock response when in mock mode
       if (this.mockMode) {
-        console.log('Mock mode: Simulating merchant registration check');
-        return true; // Always return true in mock mode
+        return true;
       }
 
       const result = await callReadOnlyFunction({
@@ -325,8 +526,106 @@ export class StacksService {
       
       return result.type === 'bool' && result.value === true;
     } catch (error) {
-      console.error('Error checking merchant registration:', error);
       return false;
+    }
+  }
+
+  // Read-only functions for Lightning and Atomic Swaps
+  async getLightningHtlc(preimageHash) {
+    try {
+      if (this.mockMode) {
+        return {
+          amount: 100000,
+          timelock: Date.now() + 3600000,
+          initiator: 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM',
+          recipient: 'ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG'
+        };
+      }
+
+      const result = await callReadOnlyFunction({
+        contractAddress: this.contractAddress,
+        contractName: this.contractName,
+        functionName: 'get-lightning-htlc',
+        functionArgs: [bufferCV(preimageHash)],
+        network: this.network,
+        senderAddress: this.contractAddress
+      });
+      
+      return this.parseContractResponse(result);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async getAtomicSwap(swapId) {
+    try {
+      if (this.mockMode) {
+        return {
+          initiator: 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM',
+          recipient: 'ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG',
+          amount: 100000,
+          status: 1
+        };
+      }
+
+      const result = await callReadOnlyFunction({
+        contractAddress: this.contractAddress,
+        contractName: this.contractName,
+        functionName: 'get-atomic-swap',
+        functionArgs: [bufferCV(swapId)],
+        network: this.network,
+        senderAddress: this.contractAddress
+      });
+      
+      return this.parseContractResponse(result);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async calculateFees(amount) {
+    try {
+      if (this.mockMode) {
+        const protocolFee = Math.floor(amount * 0.0025);
+        return {
+          protocol_fee: protocolFee,
+          net_amount: amount - protocolFee
+        };
+      }
+
+      const result = await callReadOnlyFunction({
+        contractAddress: this.contractAddress,
+        contractName: this.contractName,
+        functionName: 'calculate-fees',
+        functionArgs: [uintCV(amount)],
+        network: this.network,
+        senderAddress: this.contractAddress
+      });
+      
+      return this.parseContractResponse(result);
+    } catch (error) {
+      throw new Error(`Failed to calculate fees: ${error.message}`);
+    }
+  }
+
+  async estimateYield(amount, durationBlocks) {
+    try {
+      if (this.mockMode) {
+        return Math.floor(amount * 0.05 * (durationBlocks / 52560));
+      }
+
+      const result = await callReadOnlyFunction({
+        contractAddress: this.contractAddress,
+        contractName: this.contractName,
+        functionName: 'estimate-yield',
+        functionArgs: [uintCV(amount), uintCV(durationBlocks)],
+        network: this.network,
+        senderAddress: this.contractAddress
+      });
+      
+      return parseInt(result.value || '0');
+    } catch (error) {
+      throw new Error(`Failed to estimate yield: ${error.message}`);
     }
   }
 
