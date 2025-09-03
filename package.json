@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "frontend": "cd frontend/sflow && npm run dev",
+    "frontend": "cd frontend/sflow && npm install && npm run dev",
     "dev:full": "concurrently \"npm run dev\" \"npm run frontend\"",
     "build:frontend": "cd frontend/sflow && npm run build",
     "build": "npm run build:frontend && echo 'Build complete!'",
