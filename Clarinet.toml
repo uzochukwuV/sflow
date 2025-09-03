@@ -5,7 +5,7 @@ authors = []
 telemetry = true
 cache_dir = '.\.cache'
 requirements = []
-[contracts.bitcoin-payment-gateway]
+[contracts.sflow]
 path = 'contracts/sflow.clar'
 clarity_version = 3
 epoch = '3.2'
